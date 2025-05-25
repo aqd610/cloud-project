@@ -6,11 +6,8 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'cloud_storage'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ملفات محمية بكلمات مرور
-protected_files = {
-    "secret.pdf": "12345",
-    "grades.xlsx": "letmein"
-}
+# قاموس لحفظ أسماء الملفات وكلمات المرور (مؤقت - في الذاكرة فقط)
+protected_files = {}
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
@@ -44,13 +41,14 @@ HTML_TEMPLATE = '''
             text-align: center;
             margin-bottom: 40px;
         }
-        input[type="file"] {
+        input[type="file"], input[type="password"] {
             padding: 10px;
             border-radius: 6px;
             border: none;
             margin-bottom: 15px;
             background-color: #2c2c2c;
             color: #80cbc4;
+            width: 250px;
         }
         input[type="submit"] {
             background-color: #26a69a;
@@ -61,6 +59,7 @@ HTML_TEMPLATE = '''
             border-radius: 10px;
             cursor: pointer;
             transition: background-color 0.3s ease;
+            width: 150px;
         }
         input[type="submit"]:hover {
             background-color: #00796b;
@@ -85,6 +84,7 @@ HTML_TEMPLATE = '''
         .file-info {
             flex-grow: 1;
             margin-left: 15px;
+            word-break: break-all;
         }
         a, button {
             color: #26a69a;
@@ -117,6 +117,7 @@ HTML_TEMPLATE = '''
             margin-bottom: 15px;
             font-weight: bold;
             color: #4db6ac;
+            word-break: break-word;
         }
     </style>
     <script>
@@ -135,6 +136,8 @@ HTML_TEMPLATE = '''
         
         <form method="POST" enctype="multipart/form-data" action="/upload" onsubmit="showSpinner()">
             <input type="file" name="file" required />
+            <br />
+            <input type="password" name="password" placeholder="أدخل كلمة مرور للملف" required />
             <br />
             <input type="submit" value="رفع الملف" />
         </form>
@@ -179,13 +182,16 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload_file():
     file = request.files['file']
-    file.save(os.path.join(UPLOAD_FOLDER, file.filename))
-    message = f"✅ تم رفع الملف '{file.filename}' بنجاح!"
+    password = request.form.get('password')
+    filename = file.filename
+    file.save(os.path.join(UPLOAD_FOLDER, filename))
+    protected_files[filename] = password  # حفظ كلمة المرور مؤقتًا
+    message = f"✅ تم رفع الملف '{filename}' مع حماية بكلمة مرور!"
     files_data = []
     for filename in os.listdir(UPLOAD_FOLDER):
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         if os.path.isfile(filepath):
-            size = os.path.getsize(filepath) / 1024  # KB
+            size = os.path.getsize(filepath) / 1024
             mtime = datetime.fromtimestamp(os.path.getmtime(filepath)).strftime('%Y-%m-%d %H:%M')
             files_data.append((filename, f"{size:.1f}", mtime))
     files_data.sort()
@@ -213,10 +219,11 @@ def get_file(filename):
 @app.route('/delete/<filename>', methods=['POST'])
 def delete_file(filename):
     os.remove(os.path.join(UPLOAD_FOLDER, filename))
+    if filename in protected_files:
+        del protected_files[filename]
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
-
