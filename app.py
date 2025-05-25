@@ -6,14 +6,11 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'cloud_storage'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-protected_files = {
-    "secret.pdf": "12345",
-    "grades.xlsx": "letmein"
-}
+protected_files = {}
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar">
 <head>
     <meta charset="UTF-8" />
     <title>Cloud Project (DR: Monther Tarawneh)</title>
@@ -82,11 +79,11 @@ HTML_TEMPLATE = '''
             color: #b2dfdb;
             font-size: 16px;
             box-shadow: 0 0 8px rgba(38, 166, 154, 0.3);
+            word-break: break-all;
         }
         .file-info {
             flex-grow: 1;
             margin-left: 15px;
-            word-break: break-all;
         }
         a, button {
             color: #26a69a;
@@ -119,7 +116,6 @@ HTML_TEMPLATE = '''
             margin-bottom: 15px;
             font-weight: bold;
             color: #4db6ac;
-            word-break: break-word;
         }
     </style>
     <script>
@@ -155,9 +151,7 @@ HTML_TEMPLATE = '''
                 </div>
                 <div>
                     <a href="{{ url_for('get_file', filename=file) }}" target="_blank">⬇️ تحميل</a>
-                    <form method="POST" action="{{ url_for('delete_file', filename=file) }}" style="display:inline;">
-                        <button type="submit" title="حذف الملف">🗑️ حذف</button>
-                    </form>
+                    <a href="{{ url_for('delete_file', filename=file) }}">🗑️ حذف</a>
                 </div>
             </li>
             {% else %}
@@ -187,7 +181,7 @@ def upload_file():
     password = request.form.get('password')
     filename = file.filename
     file.save(os.path.join(UPLOAD_FOLDER, filename))
-    protected_files[filename] = password  # حفظ كلمة المرور مؤقتًا
+    protected_files[filename] = password
     message = f"✅ تم رفع الملف '{filename}' مع حماية بكلمة مرور!"
     files_data = []
     for filename in os.listdir(UPLOAD_FOLDER):
@@ -261,7 +255,6 @@ def get_file(filename):
                     </body>
                     </html>
                 ''')
-        # GET method or first time POST form display:
         return render_template_string('''
             <!DOCTYPE html>
             <html lang="ar">
@@ -332,12 +325,144 @@ def get_file(filename):
     else:
         return send_from_directory(UPLOAD_FOLDER, filename)
 
-@app.route('/delete/<filename>', methods=['POST'])
+@app.route('/delete/<filename>', methods=['GET', 'POST'])
 def delete_file(filename):
-    os.remove(os.path.join(UPLOAD_FOLDER, filename))
+    if filename not in os.listdir(UPLOAD_FOLDER):
+        return redirect(url_for('index'))
     if filename in protected_files:
-        del protected_files[filename]
-    return redirect(url_for('index'))
+        if request.method == 'POST':
+            password = request.form.get('password')
+            if password == protected_files[filename]:
+                os.remove(os.path.join(UPLOAD_FOLDER, filename))
+                del protected_files[filename]
+                return redirect(url_for('index'))
+            else:
+                return render_template_string('''
+                    <!DOCTYPE html>
+                    <html lang="ar">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>كلمة المرور خاطئة</title>
+                        <style>
+                            body {
+                                background-color: #121212;
+                                color: #ff5252;
+                                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: center;
+                                align-items: center;
+                                height: 100vh;
+                                margin: 0;
+                            }
+                            .container {
+                                background: #1e1e1e;
+                                padding: 25px 35px;
+                                border-radius: 12px;
+                                box-shadow: 0 0 15px rgba(255, 82, 82, 0.7);
+                                text-align: center;
+                            }
+                            h3 {
+                                margin-bottom: 20px;
+                                font-size: 1.4rem;
+                            }
+                            a {
+                                display: inline-block;
+                                margin-top: 15px;
+                                color: #26a69a;
+                                text-decoration: none;
+                                font-weight: bold;
+                                border: 2px solid #26a69a;
+                                padding: 8px 18px;
+                                border-radius: 8px;
+                                transition: background-color 0.3s ease, color 0.3s ease;
+                            }
+                            a:hover {
+                                background-color: #26a69a;
+                                color: #121212;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <h3>❌ كلمة المرور خاطئة!</h3>
+                            <a href="/">رجوع للصفحة الرئيسية</a>
+                        </div>
+                    </body>
+                    </html>
+                ''')
+        return render_template_string('''
+            <!DOCTYPE html>
+            <html lang="ar">
+            <head>
+                <meta charset="UTF-8" />
+                <title>تأكيد حذف الملف</title>
+                <style>
+                    body {
+                        background-color: #121212;
+                        color: #80cbc4;
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        height: 100vh;
+                        margin: 0;
+                    }
+                    .container {
+                        background: #1e1e1e;
+                        padding: 30px 40px;
+                        border-radius: 12px;
+                        box-shadow: 0 0 30px rgba(128, 203, 196, 0.7);
+                        text-align: center;
+                        width: 320px;
+                    }
+                    h3 {
+                        margin-bottom: 25px;
+                        font-weight: 700;
+                    }
+                    input[type="password"] {
+                        width: 100%;
+                        padding: 12px;
+                        border-radius: 8px;
+                        border: none;
+                        margin-bottom: 20px;
+                        background-color: #2c2c2c;
+                        color: #80cbc4;
+                        font-size: 1rem;
+                    }
+                    input[type="submit"] {
+                        background-color: #26a69a;
+                        color: #121212;
+                        border: none;
+                        padding: 12px 0;
+                        border-radius: 10px;
+                        font-weight: bold;
+                        cursor: pointer;
+                        width: 100%;
+                        transition: background-color 0.3s ease;
+                    }
+                    input[type="submit"]:hover {
+                        background-color: #00796b;
+                        color: #e0f2f1;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h3>🔒 هذا الملف محمي بكلمة مرور. أدخل كلمة المرور للحذف.</h3>
+                    <form method="POST">
+                        <input type="password" name="password" placeholder="أدخل كلمة المرور" required />
+                        <input type="submit" value="حذف الملف" />
+                    </form>
+                </div>
+            </body>
+            </html>
+        ''')
+
+    else:
+        # حذف مباشر بدون باسورد لو الملف مش محمي
+        os.remove(os.path.join(UPLOAD_FOLDER, filename))
+        return redirect(url_for('index'))
 
 if __name__ == '__main__':
     import os
